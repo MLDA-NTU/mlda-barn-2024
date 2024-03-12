@@ -31,7 +31,19 @@ if __name__ == "__main__":
     parser.add_argument('--world_idx', type=int, default=0)
     parser.add_argument('--gui', action="store_true")
     parser.add_argument('--out', type=str, default="out.txt")
+    parser.add_argument('--type',type=str, default="dwa")
+    parser.add_argument('--rviz', action="store_true")
+    
     args = parser.parse_args()
+    
+    ## Get the planner type
+    planner_type = args.type
+    if planner_type == "dwa":
+        planner_type = "DWA"
+    elif planner_type == "kul":
+        planner_type = "motion_tube"
+    else:
+        planner_type = "mlda"
     
     ##########################################################################################
     ## 0. Launch Gazebo Simulation
@@ -48,11 +60,11 @@ if __name__ == "__main__":
     elif args.world_idx < 360:  # Dynamic environment from 300-359
         world_name = "DynaBARN/world_%d.world" %(args.world_idx - 300)
         INIT_POSITION = [11, 0, 3.14]  # in world frame
-        GOAL_POSITION = [-20, 0]  # relative to the initial position
+        GOAL_POSITION = [-19.8, 0]  # relative to the initial position
     else:
         raise ValueError("World index %d does not exist" %args.world_idx)
     
-    print(">>>>>>>>>>>>>>>>>> Loading Gazebo Simulation with %s <<<<<<<<<<<<<<<<<<" %(world_name))   
+    print(">>>>>>>>>>>>>>>>>> Loading Gazebo Simulation with %s using %s <<<<<<<<<<<<<<<<<< " %(world_name, str(planner_type)))   
     rospack = rospkg.RosPack()
     base_path = rospack.get_path('jackal_helper')
     os.environ['GAZEBO_PLUGIN_PATH'] = os.path.join(base_path, "plugins")
@@ -90,14 +102,20 @@ if __name__ == "__main__":
         time.sleep(1)
 
 
-
+    if args.rviz == True:
+        ## Open RVIz
+        rviz_launch = join(base_path, '..', 'jackal_helper/launch/rviz_launch.launch')
+        rviz_launch_process = subprocess.Popen([
+            'roslaunch',
+            rviz_launch,
+        ])
 
     ##########################################################################################
     ## 1. Launch your navigation stack
     ## (Customize this block to add your own navigation stack)
     ##########################################################################################
     
-    launch_file = join(base_path, '..', 'jackal_helper/launch/move_base_DWA.launch')
+    launch_file = join(base_path, '..', 'jackal_helper/launch/move_base_{}.launch'.format(planner_type))
     nav_stack_process = subprocess.Popen([
         'roslaunch',
         launch_file,
@@ -114,7 +132,8 @@ if __name__ == "__main__":
     mb_goal.target_pose.pose.position.y = GOAL_POSITION[1]
     mb_goal.target_pose.pose.position.z = 0
     mb_goal.target_pose.pose.orientation = Quaternion(0, 0, 0, 1)
-
+    
+    
     nav_as.wait_for_server()
     nav_as.send_goal(mb_goal)
 
@@ -194,3 +213,7 @@ if __name__ == "__main__":
     gazebo_process.wait()
     nav_stack_process.terminate()
     nav_stack_process.wait()
+    
+    if args.rviz == True:
+        rviz_launch_process.terminate()
+        rviz_launch_process.wait()
