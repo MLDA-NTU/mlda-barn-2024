@@ -31,7 +31,7 @@ if __name__ == "__main__":
     parser.add_argument('--world_idx', type=int, default=0)
     parser.add_argument('--gui', action="store_true")
     parser.add_argument('--out', type=str, default="out.txt")
-    parser.add_argument('--type',type=str, default="dwa")
+    parser.add_argument('--type',type=str, default="mlda")
     parser.add_argument('--rviz', action="store_true")
     
     args = parser.parse_args()
@@ -65,6 +65,7 @@ if __name__ == "__main__":
         raise ValueError("World index %d does not exist" %args.world_idx)
     
     print(">>>>>>>>>>>>>>>>>> Loading Gazebo Simulation with %s using %s <<<<<<<<<<<<<<<<<< " %(world_name, str(planner_type)))   
+    time.sleep(1)
     rospack = rospkg.RosPack()
     base_path = rospack.get_path('jackal_helper')
     os.environ['GAZEBO_PLUGIN_PATH'] = os.path.join(base_path, "plugins")

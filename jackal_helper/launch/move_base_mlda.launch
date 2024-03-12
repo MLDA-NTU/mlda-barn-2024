@@ -17,5 +17,5 @@
         <remap from="odom" to="odometry/filtered" />
         <remap from="cmd_vel" to="dump/cmd_vel" />
     </node>
-    <!-- <node pkg="mlda_algo" type="algo.py" name="mlda_algo" output="screen"></node> -->
+    <node pkg="mlda_algo" type="algo.py" name="mlda_algo" output="screen"></node>
 </launch>
