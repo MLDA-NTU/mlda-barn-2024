@@ -19,9 +19,11 @@ class ROSNode():
         self.TOPIC_LOCAL_PLAN = "/move_base/TrajectoryPlannerROS/local_plan"
         self.TOPIC_ODOM = "/odometry/filtered"
         self.TOPIC_MPC_PLAN = "/mpc_plan"
+        self.TOPIC_PATH = "/path"
         
         self.pub_vel = rospy.Publisher(self.TOPIC_VEL, Twist, queue_size=1, latch=True)
         self.pub_mpc  = rospy.Publisher(self.TOPIC_MPC_PLAN, Path, queue_size=1)
+        self.path  = rospy.Publisher(self.TOPIC_PATH, Path, queue_size=1)
         
         self.sub_odometry = rospy.Subscriber(self.TOPIC_ODOM, Odometry, self.callback_odom)
         self.sub_global_plan = rospy.Subscriber(self.TOPIC_GLOBAL_PLAN, Path, self.callback_global_plan)
@@ -43,8 +45,8 @@ class ROSNode():
         self.y_ref = []
         self.theta_ref = []
         
-        self.deviation_threshold = 1.0
-        self.follow_threshold = 10
+        self.deviation_threshold = 0.9
+        self.follow_threshold = 10e9
         self.follow = 0
     
     def callback_odom(self,data):
@@ -127,7 +129,7 @@ class ROSNode():
             for i in range(min(len(x_ref), len(self.x_ref))-align_index):
                 dist = math.sqrt((self.x_ref[i+align_index]-x_ref[i])**2 + (self.y_ref[i+align_index]-y_ref[i])**2)
                 deviation += dist
-            mean_deviation = deviation/(self.N - align_index)
+            mean_deviation = deviation/(min(len(x_ref), len(self.x_ref)))
             print("Mean deviation: ", mean_deviation)
 
             if mean_deviation > self.deviation_threshold or self.follow > self.follow_threshold:
@@ -171,6 +173,19 @@ class ROSNode():
             mpc_traj_msg.poses.append(pose)
             
         self.pub_mpc.publish(mpc_traj_msg)
+        
+    def publish_path_trajectory(self, mpc_x_traj, mpc_y_traj):
+        mpc_traj_msg = Path()
+        mpc_traj_msg.header.stamp = rospy.Time.now()
+        mpc_traj_msg.header.frame_id = "odom"
+        for i in range(mpc_x_traj.shape[0]):
+            pose = PoseStamped()
+            pose.pose.position.x = mpc_x_traj[i]
+            pose.pose.position.y = mpc_y_traj[i]
+            pose.pose.orientation = Quaternion(0,0,0,1)
+            mpc_traj_msg.poses.append(pose)
+            
+        self.path.publish(mpc_traj_msg)
 
     def publish_velocity(self, v_opt, w_opt):
         vel = Twist()
@@ -213,6 +228,7 @@ class ROSNode():
             mpc_y_traj = self.mpc.opt_states[1::self.mpc.n]
             # print(type(mpc_x_traj), mpc_x_traj.shape)
             self.publish_trajectory(mpc_x_traj, mpc_y_traj)
+            self.publish_path_trajectory(np.array(self.x_ref), np.array(self.y_ref))
             self.x_ref = self.x_ref[1:]
             self.y_ref = self.y_ref[1:]
         else:
