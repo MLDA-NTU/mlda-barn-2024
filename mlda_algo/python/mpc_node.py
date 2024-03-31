@@ -45,7 +45,9 @@ class ROSNode():
         self.og_x_ref = []
         self.og_y_ref = []
         self.theta_ref = []
-        self.count = 0
+        
+        self.deviation_threshold = 10
+        self.align_index_threshold = 8
     
     def callback_odom(self,data):
         self.odometry = data
@@ -59,23 +61,87 @@ class ROSNode():
         self.X0 = [x,y,yaw,vr,vl]
 
     def callback_global_plan(self,data):
-        self.global_plan = data
-        if 1:
-            self.x_ref = [pose.pose.position.x for pose in self.global_plan.poses[::2]]
-            self.y_ref = [pose.pose.position.y for pose in self.global_plan.poses[::2]]
-            self.og_x_ref = self.x_ref
-            self.og_y_ref = self.y_ref
-            self.theta_ref = []
-            for i in range(len(self.x_ref)-1):
-                theta = math.atan2((self.y_ref[i+1] - self.y_ref[i]),(self.x_ref[i+1] - self.x_ref[i]))
-                self.theta_ref.append(theta)
-                if i == 0:
-                    self.theta_ref.append(theta)
-        self.count+=1
+        # self.global_plan = data
+        # self.x_ref = [pose.pose.position.x for pose in self.global_plan.poses[::]]
+        # self.y_ref = [pose.pose.position.y for pose in self.global_plan.poses[::]]
+        # self.theta_ref = []
+        # for i in range(len(self.x_ref)-1):
+        #     theta = math.atan2((self.y_ref[i+1] - self.y_ref[i]),(self.x_ref[i+1] - self.x_ref[i]))
+        #     self.theta_ref.append(theta)
+        #     if i == 0:
+        #         self.theta_ref.append(theta)
         # print("Global poses: ",len(data.poses))
         # print("X_ref ",len(self.x_ref), " : ", self.x_ref)
         # print("Y_ref ",len(self.y_ref), " : ", self.y_ref)
         # print("Theta_ref ", len(self.theta_ref), " : ", self.theta_ref)
+        
+        # Update true global plan
+        # self.true_global_plan = self.global_plan
+        # if self.true_global_plan == Path():
+        #     self.true_global_plan = self.global_plan
+        #     print("Initialized path")
+        # else:
+        #     x_ref, y_ref, theta_ref = self.get_ref_from_path(self.true_global_plan)
+        #     deviation = 0
+            
+        #     # find the portion of path that aligns
+        #     align_index = -1
+        #     prev_dist = 10e9
+        #     for i in range(self.N):
+        #         dist = math.sqrt((x_ref[i+align_index]-self.x_ref[i])**2 + (y_ref[i+align_index]-self.y_ref[i])**2)
+        #         if prev_dist < dist: break
+        #         else: align_index = i
+        #         prev_dist = dist
+                
+        #     for i in range(self.N-align_index):
+        #         dist = math.sqrt((x_ref[i+align_index]-self.x_ref[i])**2 + (y_ref[i+align_index]-self.y_ref[i])**2)
+        #         deviation += dist
+                
+        #     mean_deviation = deviation/(self.N - align_index)
+        #     if mean_deviation > self.deviation_threshold:
+        #         self.true_global_plan = self.global_plan
+        #         print("Following new path")
+        #     else:
+        #         print("Following original path")
+        
+        x_ref, y_ref, theta_ref = self.get_ref_from_path(data)
+        
+        
+        if self.x_ref == []:
+            self.x_ref = x_ref
+            self.y_ref = y_ref
+            self.theta_ref = theta_ref
+            self.global_plan = data
+            print("Initialized")
+            
+        else:
+            deviation = 0
+            #  find the portion of path that aligns
+            align_index = 0
+            prev_dist = 10e9
+            for i in range(self.N):
+                dist = math.sqrt((self.x_ref[i]-x_ref[i])**2 + (self.y_ref[i]-y_ref[i])**2)
+                if prev_dist < dist: break
+                else: align_index = i
+                prev_dist = dist
+            # calculate mean deviation
+            for i in range(self.N-align_index):
+                dist = math.sqrt((self.x_ref[i+align_index]-x_ref[i])**2 + (self.y_ref[i+align_index]-y_ref[i])**2)
+                deviation += dist
+            mean_deviation = deviation/(self.N - align_index)
+            print("Mean deviation: ", mean_deviation)
+            if mean_deviation > self.deviation_threshold or align_index > self.align_index_threshold:
+                self.x_ref = x_ref
+                self.y_ref = y_ref
+                self.theta_ref = theta_ref
+                self.global_plan = data
+                print("Following new path")
+            else:
+                print("Following original path")
+                
+        
+            
+        
         
     def callback_local_plan(self, data):
         self.local_plan = data
@@ -109,8 +175,22 @@ class ROSNode():
         vel.linear.x = v_opt
         vel.angular.z = w_opt
         self.pub_vel.publish(vel)
-
+        
+    def get_ref_from_path(self, path):
+        x_ref = [pose.pose.position.x for pose in path.poses[::]]
+        y_ref = [pose.pose.position.y for pose in path.poses[::]]
+        theta_ref = []
+        for i in range(len(x_ref)-1):
+            theta = math.atan2((y_ref[i+1] - y_ref[i]),(x_ref[i+1] - x_ref[i]))
+            theta_ref.append(theta)
+            if i == 0:
+                theta_ref.append(theta)
+        return x_ref, y_ref, theta_ref
+        
     def run(self):
+        # take ref from true global plan instead of current global plan
+        # self.x_ref, self.y_ref, self.theta_ref = self.get_ref_from_path(self.true_global_plan)
+        
         # try:
         if len(self.x_ref) > self.mpc.N:
             
@@ -155,7 +235,7 @@ class ROSNode():
 
 def start_traj():
     start_traj_publisher = rospy.Publisher("/start_traj", Path, queue_size=1, latch=True)
-    traj = rospy.wait_for_message("/move_base/TrajectoryPlannerROS/global_plan", Path,timeout=1)
+    traj = rospy.wait_for_message("/move_base/TrajectoryPlannerROS/global_plan", Path,timeout=1) # GEt msg 1 time
     # mpc_traj_msg = Path()
     # mpc_traj_msg.header.stamp = rospy.Time.now()
     # mpc_traj_msg.header.frame_id = "odom"
