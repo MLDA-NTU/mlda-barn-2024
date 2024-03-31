@@ -45,8 +45,8 @@ class ROSNode():
         self.y_ref = []
         self.theta_ref = []
         
-        self.deviation_threshold = 0.9
-        self.follow_threshold = 10e9
+        self.deviation_threshold = 0.3
+        self.follow_threshold = 15
         self.follow = 0
     
     def callback_odom(self,data):
