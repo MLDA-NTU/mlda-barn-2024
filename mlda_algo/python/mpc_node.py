@@ -43,8 +43,9 @@ class ROSNode():
         self.y_ref = []
         self.theta_ref = []
         
-        self.deviation_threshold = 10
-        self.align_index_threshold = 8
+        self.deviation_threshold = 1.0
+        self.follow_threshold = 10
+        self.follow = 0
     
     def callback_odom(self,data):
         self.odometry = data
@@ -116,24 +117,28 @@ class ROSNode():
             #  find the portion of path that aligns
             align_index = 0
             prev_dist = 10e9
-            for i in range(self.N):
-                dist = math.sqrt((self.x_ref[i]-x_ref[i])**2 + (self.y_ref[i]-y_ref[i])**2)
+            for i in range(min(len(x_ref), len(self.x_ref))):
+                dist = math.sqrt((self.x_ref[0]-x_ref[i])**2 + (self.y_ref[0]-y_ref[i])**2)
                 if prev_dist < dist: break
-                else: align_index = i
+                align_index = i
                 prev_dist = dist
+            # print("align_index: ", align_index)
             # calculate mean deviation
-            for i in range(self.N-align_index):
+            for i in range(min(len(x_ref), len(self.x_ref))-align_index):
                 dist = math.sqrt((self.x_ref[i+align_index]-x_ref[i])**2 + (self.y_ref[i+align_index]-y_ref[i])**2)
                 deviation += dist
             mean_deviation = deviation/(self.N - align_index)
             print("Mean deviation: ", mean_deviation)
-            if mean_deviation > self.deviation_threshold or align_index > self.align_index_threshold:
+
+            if mean_deviation > self.deviation_threshold or self.follow > self.follow_threshold:
                 self.x_ref = x_ref
                 self.y_ref = y_ref
                 self.theta_ref = theta_ref
                 self.global_plan = data
+                self.follow = 0
                 print("Following new path")
             else:
+                self.follow += 1
                 print("Following original path")
                 
         
@@ -174,8 +179,8 @@ class ROSNode():
         self.pub_vel.publish(vel)
         
     def get_ref_from_path(self, path):
-        x_ref = [pose.pose.position.x for pose in path.poses[::]]
-        y_ref = [pose.pose.position.y for pose in path.poses[::]]
+        x_ref = [pose.pose.position.x for pose in path.poses[::2]]
+        y_ref = [pose.pose.position.y for pose in path.poses[::2]]
         theta_ref = []
         for i in range(len(x_ref)-1):
             theta = math.atan2((y_ref[i+1] - y_ref[i]),(x_ref[i+1] - x_ref[i]))
