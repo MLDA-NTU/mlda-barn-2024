@@ -129,7 +129,7 @@ class ROSNode():
             for i in range(min(len(x_ref), len(self.x_ref))-align_index):
                 dist = math.sqrt((self.x_ref[i+align_index]-x_ref[i])**2 + (self.y_ref[i+align_index]-y_ref[i])**2)
                 deviation += dist
-            mean_deviation = deviation/(min(len(x_ref), len(self.x_ref)))
+            mean_deviation = deviation/(min(len(x_ref), len(self.x_ref))-align_index)
             print("Mean deviation: ", mean_deviation)
 
             if mean_deviation > self.deviation_threshold or self.follow > self.follow_threshold:
