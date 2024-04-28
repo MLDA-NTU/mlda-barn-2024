@@ -36,7 +36,6 @@ class Inspection():
         self.sub_cmd_vel = rospy.Subscriber(self.TOPIC_CMD_VEL, Twist, self.callback_cmd_vel)
         self.publish_cmd_vel = rospy.Publisher(self.TOPIC_CMD_VEL, Twist, queue_size= 10)
         
-        
         pass
     
     def callback_front_scan(self,data):
@@ -48,7 +47,7 @@ class Inspection():
         pass
     def callback_global_plan(self,data):
         self.global_plan = data
-        if 1: 
+        if 0: 
             print("Global Path points ", len(data.poses))
             print(data.poses[3])
             print("Local Path points ", len(self.local_plan.poses))
@@ -92,8 +91,8 @@ class Inspection():
             print("Points: ", np.round(np_array,3))
         pass
     def callback_cmd_vel(self,data):
-        if 0:
-            print("Linear: ", data.linear, "; Angular: ", data.angular)
+        if 1:
+            print("Linear: ", round(data.linear.x,3), "; Angular: ", round(data.angular.z,3))
         pass
 
 

@@ -10,6 +10,7 @@ import tf
 
 class LaserScanToPointCloud():
     def __init__(self):
+        self.SAFE = 1.5
         self.TOPIC_LASER_SCAN = "/front/scan"
         self.TOPIC_POINT_CLOUD_LASER = "/front/laser/cloud"
         self.TOPIC_POINT_CLOUD_ODOM = "/front/odom/cloud"
@@ -69,13 +70,12 @@ class LaserScanToPointCloud():
                   PointField('intensity', 12, PointField.FLOAT32, 1)]
         points = []
 
-        safe = 1.5 # [m]
         count = 0
         for point in point_generator:
             if count % 15 == 0:
                 p_pc_from_laser = np.array([point[0], point[1], point[2], 1])
                 p_pc_from_odom = np.matmul(final_matrix, p_pc_from_laser)
-                if (p_pc_from_odom[0] - trans[0])**2 + (p_pc_from_odom[1] - trans[1])**2 < safe**2:
+                if (p_pc_from_odom[0] - trans[0])**2 + (p_pc_from_odom[1] - trans[1])**2 < self.SAFE**2:
                     points.append(p_pc_from_odom)
             count += 1
         pointc = pc2.create_cloud(header, fields, points)

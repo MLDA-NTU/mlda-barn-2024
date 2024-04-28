@@ -35,7 +35,7 @@ docker run --rm -dt --name barn \
 	-e NVIDIA_DRIVER_CAPABILITIES=all \
 	-v /tmp/.X11-unix:/tmp/.X11-unix \
 	-v ~/mlda-barn-2024:/jackal_ws/src/mlda-barn-2024 \
-	mldarobotics/barn2024:april1
+	mldarobotics/barn2024:may1
 
 
 docker run --rm -dt --name barn \
@@ -45,7 +45,7 @@ docker run --rm -dt --name barn \
 	-e LIBGL_ALWAYS_SOFTWARE=1 \
 	-e NVIDIA_DRIVER_CAPABILITIES=all \
 	-v /tmp/.X11-unix:/tmp/.X11-unix \
-	mldarobotics/barn2024:april1
+	mldarobotics/barn2024:may1
 
 docker run --rm -dt --name barn \
 	-e DISPLAY=":1" \

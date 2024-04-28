@@ -63,5 +63,5 @@
   <node pkg="free_space_motion_tube_ros" type="barn_motion_tube_node" respawn="true"
     name="barn_motion_tube_node" />
   <node type="rviz" name="rviz" pkg="rviz" args="-d $(find jackal_helper)/launch/config_file.rviz" />
-
+  <node pkg="mlda_algo" type="inspection.py" name="inspection" output="screen" />
 </launch>
