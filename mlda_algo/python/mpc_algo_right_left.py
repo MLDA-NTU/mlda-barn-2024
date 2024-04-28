@@ -20,7 +20,7 @@ class NMPC:
         self.v_max = 1  # Max velocity [m/s]
         self.v_min = -1  # Min velocity [m/s]
         self.v_ref = 0.5  # Reference velocity [m/s]
-        self.a_max = 0.5  # Max acceleration [m/s^2]
+        self.a_max = 1  # Max acceleration [m/s^2]
 
         self.w_max = 1  # Max angular vel [rad/s]
         self.w_min = -1  # Max angular vel [rad/s]
@@ -140,7 +140,8 @@ class NMPC:
         ### This is not dynamic contraints, because they only relate the existing optimization variables
 
     def solve(self, x_ref, y_ref, theta_ref, X0):
-        self.weight_velocity = 2
+        self.weight_velocity_ref = 0
+        self.weight_max_velocity = 1
         self.weight_position_error = 1
         self.weight_cross_track_error = 0
         self.weight_theta_error = 0
@@ -231,13 +232,9 @@ class NMPC:
             reference_velocity_cost = (self.X[3 :: self.n][i] - self.v_ref) ** 2 + (
                 self.X[4 :: self.n][i] - self.v_ref
             ) ** 2
-            # reference_velocity_cost = 0
-
-            # Minimize angular velocity
-            angular_velocity_cost = -(
-                (self.X[3 :: self.n][i] - self.X[4 :: self.n][i]) ** 2
+            max_velocity_cost = (
+                -((self.X[3 :: self.n][i]) ** 2) - (self.X[4 :: self.n][i]) ** 2
             )
-
             # Cross-track Error cost
             cross_track_error_cost = -(x_ref[i] - self.X[0 :: self.n][i]) * (
                 np.sin(theta_ref[i])
@@ -256,10 +253,11 @@ class NMPC:
             # Cost function calculation
             J += (
                 self.weight_position_error * position_error_cost
-                + self.weight_velocity * reference_velocity_cost
+                + self.weight_velocity_ref * reference_velocity_cost
                 + self.weight_theta_error * theta_error_cost
                 + self.weight_cross_track_error * cross_track_error_cost
                 + self.weight_acceleration * successive_error
+                + self.weight_max_velocity * max_velocity_cost
             )
 
         # === Initial guess
@@ -337,7 +335,7 @@ class NMPC:
         careful = False
         if np.count_nonzero(obs_dist < self.CAREFUL_DIST) > 0:
             careful = True  # Careful
-            self.weight_velocity = 1
+            self.weight_velocity_ref = 1
             self.weight_position_error = 1
             self.weight_cross_track_error = 0
             self.weight_theta_error = 0
@@ -348,7 +346,7 @@ class NMPC:
             self.v_max = 0.3
 
         else:
-            self.weight_velocity = 1
+            self.weight_velocity_ref = 1
             self.weight_position_error = 1
             self.weight_cross_track_error = 0
             self.weight_theta_error = 0
@@ -484,7 +482,7 @@ class NMPC:
             # Cost function calculation
             J += (
                 self.weight_position_error * position_error_cost
-                + self.weight_velocity * reference_velocity_cost
+                + self.weight_velocity_ref * reference_velocity_cost
                 + self.weight_theta_error * theta_error_cost
                 + self.weight_cross_track_error * cross_track_error_cost
                 + self.weight_acceleration * successive_error
