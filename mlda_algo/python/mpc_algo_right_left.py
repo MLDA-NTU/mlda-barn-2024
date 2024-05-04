@@ -7,7 +7,7 @@ import time
 
 class NMPC:
     def __init__(self, freq=20, N=20):
-        self.COLLISION_DIST = 0.35
+        self.COLLISION_DIST = 0.36
         self.SAFE_DISTANCE = 0.5
 
         self.f = freq  # Controller frequency [Hz]
@@ -31,6 +31,9 @@ class NMPC:
         self.w_max = 1  # Max angular vel [rad/s]
         self.w_min = -1  # Max angular vel [rad/s]
 
+        self.t_max = 0.051
+        self.t_min = 0.049
+
         self.N = N
 
         self.opt_states = None
@@ -50,23 +53,24 @@ class NMPC:
             self.weight_velocity_ref = 1
             self.weight_max_velocity = 0
             self.weight_position_error = 1
-            self.weight_acceleration = 1
+            self.weight_acceleration = 0
             self.weight_cross_track_error = 0
             self.weight_theta_error = 0
             self.weight_inital_theta_error = 0
             self.weight_time_elastic = 0
 
-            self.final_value_contraints = 3
+            self.final_value_contraints = 0
             self.v_ref = 1
-            self.v_max_indiv = 1
-            self.v_min_indiv = -1
+
             self.v_max_total = 1
             self.v_min_total = -1
+            self.w_min = -0.8
+            self.w_max = 0.8
         elif mode == "obs":
             self.weight_velocity_ref = 0.1
             self.weight_max_velocity = 0
-            self.weight_position_error = 10
-            self.weight_acceleration = 1
+            self.weight_position_error = 2
+            self.weight_acceleration = 0
             self.weight_cross_track_error = 0
             self.weight_theta_error = 0
             self.weight_inital_theta_error = 0
@@ -76,17 +80,17 @@ class NMPC:
             self.rate = 10
             self.H = 1 / self.rate
             self.final_value_contraints = 0
-            self.v_ref = 0.8
+            self.v_ref = 0.5
 
-            self.v_max_indiv = 0.8
-            self.v_min_indiv = -0.8
             self.v_max_total = 0.8
             self.v_min_total = -0.8
+            self.w_min = -0.8
+            self.w_max = 0.8
         elif mode == "careful":
             self.weight_velocity_ref = 0.1
             self.weight_max_velocity = 0
-            self.weight_position_error = 10
-            self.weight_acceleration = 1
+            self.weight_position_error = 2
+            self.weight_acceleration = 0
             self.weight_cross_track_error = 0
             self.weight_theta_error = 0
             self.weight_inital_theta_error = 0
@@ -95,15 +99,15 @@ class NMPC:
 
             self.rate = 10
             self.H = 1 / self.rate
-            self.final_value_contraints = 0
+            self.final_value_contraints = 3
             self.v_ref = 0.3
 
-            self.v_max_indiv = 0.5
-            self.v_min_indiv = -0.5
             self.v_max_total = 0.5
             self.v_min_total = -0.5
+            self.w_min = -1
+            self.w_max = 1
 
-    def setup(self, rate):
+    def setup(self, rate=10):
         self.h = 1 / rate
         # --- State and control variables ---
         # Variables
@@ -121,7 +125,7 @@ class NMPC:
             self.v_min_indiv,
             -self.a_max,
             -self.a_max,
-            0.05,
+            self.t_min,
         ] * self.N
         self.lbx = np.array(lbx)
         ubx = [
@@ -132,7 +136,7 @@ class NMPC:
             self.v_max_indiv,
             self.a_max,
             self.a_max,
-            1,
+            self.t_max,
         ] * self.N
         self.ubx = np.array(ubx)
 
@@ -143,7 +147,7 @@ class NMPC:
             self.X[0 :: self.n][1:]
             - self.X[0 :: self.n][:-1]
             - 0.5
-            * self.X[7 :: self.n][:-1]
+            * self.h
             * (
                 ((self.X[3 :: self.n][1:] + self.X[4 :: self.n][1:]) / 2)
                 * np.cos(self.X[2 :: self.n][1:])
@@ -155,7 +159,7 @@ class NMPC:
             self.X[1 :: self.n][1:]
             - self.X[1 :: self.n][:-1]
             - 0.5
-            * self.X[7 :: self.n][:-1]
+            * self.h
             * (
                 ((self.X[3 :: self.n][1:] + self.X[4 :: self.n][1:]) / 2)
                 * np.sin(self.X[2 :: self.n][1:])
@@ -167,7 +171,7 @@ class NMPC:
             self.X[2 :: self.n][1:]
             - self.X[2 :: self.n][:-1]
             - 0.5
-            * self.X[7 :: self.n][:-1]
+            * self.h
             * (
                 ((self.X[3 :: self.n][1:] - self.X[4 :: self.n][1:]) / self.L)
                 + ((self.X[3 :: self.n][:-1] - self.X[4 :: self.n][:-1]) / self.L)
@@ -177,15 +181,13 @@ class NMPC:
         gv_r = (
             self.X[3 :: self.n][1:]
             - self.X[3 :: self.n][:-1]
-            - 0.5
-            * self.X[7 :: self.n][:-1]
-            * (self.X[5 :: self.n][1:] + self.X[5 :: self.n][:-1])
+            - 0.5 * self.h * (self.X[5 :: self.n][1:] + self.X[5 :: self.n][:-1])
         )
         gv_l = (
             self.X[4 :: self.n][1:]
             - self.X[4 :: self.n][:-1]
             - 0.5
-            * self.X[7 :: self.n][:-1]
+            * self.h
             * (
                 self.X[6 :: self.n][1:] + self.X[6 :: self.n][:-1]
             )  # Time is an opt variable
@@ -214,6 +216,7 @@ class NMPC:
 
     def solve(self, x_ref, y_ref, theta_ref, X0):
         self.setup_param("safe")
+        self.setup(10)
         start_time = time.time()
 
         # === Set constraints bound
@@ -369,7 +372,7 @@ class NMPC:
             "=={}=={}==".format(self.v_ref, self.v_max_indiv),
         )
 
-        return v_opt, w_opt, self.mode
+        return v_opt, w_opt, self.mode, solve_time
 
     def solve_obs(self, x_ref, y_ref, theta_ref, obs_x, obs_y, X0):
         start_time = time.time()
@@ -390,6 +393,7 @@ class NMPC:
 
         else:
             self.setup_param("obs")
+        self.setup(10)
 
         # === Set constraints bound
 
@@ -536,8 +540,8 @@ class NMPC:
         )
 
         # === Optimal control
-        vr_opt = solution["x"][3 :: self.n][2]
-        vl_opt = solution["x"][4 :: self.n][2]
+        vr_opt = solution["x"][3 :: self.n][1]
+        vl_opt = solution["x"][4 :: self.n][1]
 
         v_opt = (vr_opt + vl_opt) / 2
         w_opt = (vr_opt - vl_opt) / self.L
@@ -560,7 +564,7 @@ class NMPC:
             round(1 / solve_time, 1),
             "Cost:",
             np.round(np.array(solution["f"]).item(), 1),
-            "=={}=={}==".format(self.v_ref, self.v_max_indiv),
+            "=={}=={}==".format(self.v_ref, self.mode),
         )
 
-        return v_opt, w_opt, self.mode
+        return v_opt, w_opt, self.mode, solve_time

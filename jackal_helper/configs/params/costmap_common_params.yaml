@@ -33,4 +33,4 @@ obstacles_layer:
     }
 
 inflater_layer:
-  inflation_radius: 0.30
+  inflation_radius: 0.31
