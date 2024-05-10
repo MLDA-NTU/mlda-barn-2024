@@ -7,7 +7,7 @@ import math
 
 class NMPC:
     def __init__(self, freq=20, N=20):
-        self.COLLISION_DIST = 0.37
+        self.COLLISION_DIST = 0.35
         self.SAFE_DISTANCE = 0.5
 
         self.f = freq  # Controller frequency [Hz]
@@ -24,8 +24,8 @@ class NMPC:
         self.v_max_total = 1
         self.v_min_total = -1
         self.a_max = 1  # Max acceleration [m/s^2]
-        self.w_max = 0.8  # Max angular vel [rad/s]
-        self.w_min = -0.8  # Max angular vel [rad/s]
+        self.w_max = 0.7  # Max angular vel [rad/s]
+        self.w_min = -0.7  # Max angular vel [rad/s]
 
         self.t_min = 0.05  # 20 Hz
         self.t_max = 0.5  # 2 Hz
@@ -47,7 +47,7 @@ class NMPC:
         self.init_value_constraints = 5
 
         self.init_guess = 0
-        self.weight_inital_theta_error = 0
+        self.weight_initial_theta_error = 0
         self.weight_theta_error = 0
         self.weight_max_velocity = 0
         self.weight_cross_track_error = 0
@@ -56,6 +56,7 @@ class NMPC:
             self.weight_position_error = 1
             self.weight_acceleration = 5
             self.weight_time_elastic = 0
+            self.ang_vel_cost = 0
 
             self.final_value_contraints = 3
             self.v_ref = 1
@@ -66,20 +67,20 @@ class NMPC:
             self.weight_position_error = 5
             self.weight_acceleration = 0.1
             self.weight_time_elastic = 2
-            self.weight_obs = 0
+            self.ang_vel_cost = 0
 
             self.rate = 10
             self.H = 1 / self.rate
             self.final_value_contraints = 3
             self.v_ref = 0.7
-            self.v_max_total = 0.7
-            self.v_min_total = -0.7
+            self.v_max_total = 1
+            self.v_min_total = -1
         elif mode == "careful":
             self.weight_velocity_ref = 0.1
             self.weight_position_error = 5
             self.weight_acceleration = 0.1
             self.weight_time_elastic = 2
-            self.weight_obs = 0
+            self.ang_vel_cost = 5
 
             self.rate = 5
             self.H = 1 / self.rate
@@ -87,6 +88,20 @@ class NMPC:
             self.v_ref = 0.4
             self.v_max_total = 0.4
             self.v_min_total = -0.4
+        elif mode == "reverse":
+            self.weight_velocity_ref = 0.1
+            self.weight_position_error = 5
+            self.weight_acceleration = 0.1
+            self.weight_time_elastic = 2
+            self.ang_vel_cost = 0
+
+            self.rate = 5
+            self.H = 1 / self.rate
+            self.final_value_contraints = 0
+            self.v_ref = 0.4
+            self.v_max_total = 0.4
+            self.v_min_total = -0.4
+            
         self.setup(10)
 
     def diff_angle(self, a1, a2):
@@ -272,7 +287,7 @@ class NMPC:
 
         J = 0
         initial_theta_error = (self.X[2 :: self.n][1] - theta_ref[1]) ** 2
-        J += self.weight_inital_theta_error * initial_theta_error
+        J += self.weight_initial_theta_error * initial_theta_error
 
         for i in range(self.N):
             # Position Error cost
@@ -388,15 +403,25 @@ class NMPC:
 
         obs_dist = []
         for i in range(obs_num):
+            dx = x_ref[0] - obs_x[i]
+            dy = y_ref[0] - obs_y[i]
+            # obs_theta = np.atan2(dy, dx)
             obs_dist.append(
-                np.sqrt((obs_x[i] - x_ref[0]) ** 2 + (obs_y[i] - y_ref[0]) ** 2)
+                np.sqrt(dx ** 2 + dy ** 2)
             )
         obs_dist = np.array(obs_dist)
-
-        careful = False
+        
+        length = self.N
+        count = 0
+        for i in range(1, self.N):
+            if self.diff_angle(X0[2], theta_ref[i]) > np.pi / 2:
+                count += 1
+        
         if np.count_nonzero(obs_dist < self.SAFE_DISTANCE) > 0:  # m
-            self.setup_param("careful")
-
+            if count > 0.5 * length:
+                self.setup_param("reverse")
+            else:
+                self.setup_param("careful")
         else:
             self.setup_param("obs")
 
@@ -444,13 +469,7 @@ class NMPC:
             self.g = ca.vertcat(self.g, g0)
 
         # === Initial guess
-
-        length = self.N
-        count = 0
-        for i in range(1, self.N):
-            if self.diff_angle(X0[2], theta_ref[i]) > np.pi / 2:
-                count += 1
-        if (count / length) > 0.5 and self.mode == "careful":
+        if self.mode == "reverse":
             self.display = "REVERSING"
             self.reverse = True
             self.reverse_theta_ref = []
@@ -542,7 +561,11 @@ class NMPC:
                     * (self.X[6 :: self.n][i + 1] - self.X[6 :: self.n][i])
                 )
 
+            # Angular velocity cost
+            ang_vel = (self.X[3] - self.X[4]) ** 2 / self.L
+
             time_elastic = (self.X[7 :: self.n][i] - self.H) ** 2
+
             # Cost function calculation
             J += (
                 self.weight_position_error * position_error_cost
@@ -552,6 +575,7 @@ class NMPC:
                 + self.weight_acceleration * successive_error
                 + self.weight_max_velocity * maximize_velocity
                 + self.weight_time_elastic * time_elastic
+                + self.ang_vel_cost * ang_vel
             )
 
         # === Solution
