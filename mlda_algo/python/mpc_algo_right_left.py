@@ -42,12 +42,11 @@ class NMPC:
 
     def setup_param(self, mode):
         self.mode = mode
-
         self.per_step_constraints = 9
         self.init_value_constraints = 5
-
         self.init_guess = 0
-        self.weight_inital_theta_error = 0
+
+        self.weight_initial_theta_cost = 0.05
         self.weight_theta_error = 0
         self.weight_max_velocity = 0
         self.weight_cross_track_error = 0
@@ -57,36 +56,35 @@ class NMPC:
             self.weight_acceleration = 5
             self.weight_time_elastic = 0
 
-            self.final_value_contraints = 3
-            self.v_ref = 1
-            self.v_max_total = 1
-            self.v_min_total = -1
+            self.final_value_constraints = 3
+            self.v_ref = 0.5
+            self.v_max_total = 0.5
+            self.v_min_total = -0.5
         elif mode == "obs":
             self.weight_velocity_ref = 0.1
             self.weight_position_error = 5
             self.weight_acceleration = 0.1
             self.weight_time_elastic = 2
-            self.weight_obs = 0
 
             self.rate = 10
             self.H = 1 / self.rate
-            self.final_value_contraints = 3
-            self.v_ref = 0.7
-            self.v_max_total = 0.7
-            self.v_min_total = -0.7
+            self.final_value_constraints = 3
+            self.v_ref = 0.5
+            self.v_max_total = 0.5
+            self.v_min_total = -0.5
         elif mode == "careful":
             self.weight_velocity_ref = 0.1
             self.weight_position_error = 5
             self.weight_acceleration = 0.1
             self.weight_time_elastic = 2
-            self.weight_obs = 0
 
             self.rate = 5
             self.H = 1 / self.rate
-            self.final_value_contraints = 0
-            self.v_ref = 0.4
-            self.v_max_total = 0.4
-            self.v_min_total = -0.4
+            self.final_value_constraints = 0
+            self.v_ref = 0.3
+            self.v_max_total = 0.3
+            self.v_min_total = -0.3
+
         self.setup(10)
 
     def diff_angle(self, a1, a2):
@@ -225,20 +223,20 @@ class NMPC:
         self.lbg = np.zeros(
             (self.N - 1) * self.per_step_constraints
             + self.init_value_constraints
-            + self.final_value_contraints
+            + self.final_value_constraints
         )
         self.ubg = np.zeros(
             (self.N - 1) * self.per_step_constraints
             + self.init_value_constraints
-            + self.final_value_contraints
+            + self.final_value_constraints
         )
         # Set inequality bound
         self.ubg[
             (
                 -4 * (self.N - 1)
                 - self.init_value_constraints
-                - self.final_value_contraints
-            ) : (-self.init_value_constraints - self.final_value_contraints)
+                - self.final_value_constraints
+            ) : (-self.init_value_constraints - self.final_value_constraints)
         ] = np.inf  # Velocity positive
 
         ## All constraints g
@@ -263,16 +261,16 @@ class NMPC:
         gfx = self.X[0 :: self.n][self.N - 1] - x_ref[idx]
         gfy = self.X[1 :: self.n][self.N - 1] - y_ref[idx]
         gftheta = self.X[2 :: self.n][self.N - 1] - theta_ref[idx]
-        if self.final_value_contraints == 3:
+        if self.final_value_constraints == 3:
             self.g = ca.vertcat(self.g, gfx, gfy, gftheta)
-        elif self.final_value_contraints == 2:
+        elif self.final_value_constraints == 2:
             self.g = ca.vertcat(self.g, gfx, gfy)
 
         # --- Cost function ---
 
         J = 0
         initial_theta_error = (self.X[2 :: self.n][1] - theta_ref[1]) ** 2
-        J += self.weight_inital_theta_error * initial_theta_error
+        J += self.weight_initial_theta_cost * initial_theta_error
 
         for i in range(self.N):
             # Position Error cost
@@ -385,20 +383,23 @@ class NMPC:
 
         obs_num = len(obs_x)
         obs_constraints = obs_num * (self.N - 1)
-
-        obs_dist = []
-        for i in range(obs_num):
-            obs_dist.append(
-                np.sqrt((obs_x[i] - x_ref[0]) ** 2 + (obs_y[i] - y_ref[0]) ** 2)
-            )
-        obs_dist = np.array(obs_dist)
-
         careful = False
-        if np.count_nonzero(obs_dist < self.SAFE_DISTANCE) > 0:  # m
-            self.setup_param("careful")
 
-        else:
+        print("Theta Diff: ", abs(X0[2] - theta_ref[0]))
+        if abs(X0[2] - theta_ref[0]) < np.pi / 6:
             self.setup_param("obs")
+        else:
+            obs_dist = []
+            for i in range(obs_num):
+                obs_dist.append(
+                    np.sqrt((obs_x[i] - x_ref[0]) ** 2 + (obs_y[i] - y_ref[0]) ** 2)
+                )
+            obs_dist = np.array(obs_dist)
+            obs_near = (np.count_nonzero(obs_dist < self.SAFE_DISTANCE) > 0)
+            if obs_near: # m
+                self.setup_param("careful")
+            else:
+                self.setup_param("obs")
 
         # === Set constraints bound
 
@@ -407,13 +408,13 @@ class NMPC:
         self.lbg = np.zeros(
             (self.N - 1) * self.per_step_constraints
             + self.init_value_constraints
-            + self.final_value_contraints
+            + self.final_value_constraints
             + obs_constraints
         )
         self.ubg = np.zeros(
             (self.N - 1) * self.per_step_constraints
             + self.init_value_constraints
-            + self.final_value_contraints
+            + self.final_value_constraints
             + obs_constraints
         )
         # Set inequality bound
@@ -421,11 +422,11 @@ class NMPC:
             (
                 -4 * (self.N - 1)
                 - self.init_value_constraints
-                - self.final_value_contraints
+                - self.final_value_constraints
                 - obs_constraints
             ) : (
                 -self.init_value_constraints
-                - self.final_value_contraints
+                - self.final_value_constraints
                 - obs_constraints
             )
         ] = np.inf  # Velocity positive
@@ -494,9 +495,9 @@ class NMPC:
             gftheta = self.X[2 :: self.n][offset] - self.reverse_theta_ref[-1]
         else:
             gftheta = self.X[2 :: self.n][offset] - theta_ref[offset]
-        if self.final_value_contraints == 3:
+        if self.final_value_constraints == 3:
             self.g = ca.vertcat(self.g, gfx, gfy, gftheta)
-        elif self.final_value_contraints == 2:
+        elif self.final_value_constraints == 2:
             self.g = ca.vertcat(self.g, gfx, gfy)
 
         # === Obstacle Constraints
@@ -510,6 +511,8 @@ class NMPC:
 
         # --- Cost function ---
         J = 0
+        initial_theta_error = (self.X[2 :: self.n][1] - theta_ref[1]) ** 2
+        J += self.weight_initial_theta_cost * initial_theta_error
 
         for i in range(self.N):
             # Position Error cost
