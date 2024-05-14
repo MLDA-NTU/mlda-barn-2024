@@ -1,5 +1,6 @@
 GlobalPlanner:
   old_navfn_behavior: false
-  use_dijkstra: false
+  use_dijkstra: true
   cost_factor: 3.0
   lethal_cost: 253.0
+  orientation_mode: 5.0
