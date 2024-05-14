@@ -58,9 +58,9 @@ class NMPC:
             self.weight_time_elastic = 0
 
             self.final_value_contraints = 3
-            self.v_ref = 1
-            self.v_max_total = 1
-            self.v_min_total = -1
+            self.v_ref = 0.5
+            self.v_max_total = 0.5
+            self.v_min_total = -0.5
         elif mode == "obs":
             self.weight_velocity_ref = 0.1
             self.weight_position_error = 5
@@ -71,9 +71,9 @@ class NMPC:
             self.rate = 10
             self.H = 1 / self.rate
             self.final_value_contraints = 3
-            self.v_ref = 0.7
-            self.v_max_total = 0.7
-            self.v_min_total = -0.7
+            self.v_ref = 0.5
+            self.v_max_total = 0.5
+            self.v_min_total = -0.5
         elif mode == "careful":
             self.weight_velocity_ref = 0.1
             self.weight_position_error = 5
@@ -84,9 +84,9 @@ class NMPC:
             self.rate = 5
             self.H = 1 / self.rate
             self.final_value_contraints = 0
-            self.v_ref = 0.4
-            self.v_max_total = 0.4
-            self.v_min_total = -0.4
+            self.v_ref = 0.3
+            self.v_max_total = 0.3
+            self.v_min_total = -0.3
         self.setup(10)
 
     def diff_angle(self, a1, a2):

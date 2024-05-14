@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 import rospy
 from sensor_msgs.msg import LaserScan
 from geometry_msgs.msg import Twist, PoseStamped, PolygonStamped

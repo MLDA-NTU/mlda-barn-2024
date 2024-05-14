@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 import rospy
 import sensor_msgs.point_cloud2 as pc2
 import tf.transformations as tft
@@ -113,4 +113,5 @@ if __name__ == "__main__":
         except Exception as e:
             print(e)
             continue
+        rospy.loginfo("Scan->Cloud")
         pause.sleep()
