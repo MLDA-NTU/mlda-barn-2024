@@ -1,6 +1,5 @@
 <launch>
     <!-- Start the navigation stack -->
-
     <node pkg="hector_mapping" type="hector_mapping" respawn="false" name="hector_mapping"
         output="screen">
 
@@ -34,7 +33,6 @@
         <remap from="odom" to="odometry/filtered" />
 
     </node>
-
     <!-- The configuration files are loaded from mlda_algo -->
     <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
 
@@ -61,7 +59,7 @@
     </node>
     <node pkg="mlda_algo" type="scan_cloud_pub.py" name="scan_cloud_pub"></node>
     <node pkg="mlda_algo" type="occupancy_cloud_pub.py" name="map_cloud_pub"></node>
-    <!-- <node pkg="mlda_algo" type="mpc_node.py" name="mlda_algo"></node> -->
+    <node pkg="mlda_algo" type="mpc_node.py" name="mlda_algo"></node>
     <node pkg="mlda_algo" type="init_goal.py" name="init_goal"></node>
     <node type="rviz" name="rviz" pkg="rviz" args="-d $(find mlda_algo)/launch/config_file.rviz" />
 </launch>
